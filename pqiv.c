@@ -3,6 +3,10 @@
  *
  * Copyright (c) 2013-2017, Phillip Berndt
  *
+ * pqiv-overlay
+ *
+ * 20XX, fork by gloomDev @ github
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -295,7 +299,6 @@ gboolean option_start_with_slideshow_mode = FALSE;
 gboolean option_sort = FALSE;
 enum { NAME, MTIME } option_sort_key = NAME;
 gboolean option_shuffle = FALSE;
-gboolean option_transparent_background = FALSE;
 gboolean option_watch_directories = FALSE;
 gboolean option_wait_for_images_to_appear = FALSE;
 gboolean option_fading = FALSE;
@@ -388,7 +391,6 @@ PQIV_DISABLE_PEDANTIC
 // Hint: Only types G_OPTION_ARG_NONE, G_OPTION_ARG_STRING, G_OPTION_ARG_DOUBLE/INTEGER and G_OPTION_ARG_CALLBACK are
 // implemented for option parsing.
 GOptionEntry options[] = {
-	{ "transparent-background", 'c', 0, G_OPTION_ARG_NONE, &option_transparent_background, "Borderless transparent window", NULL },
 	{ "slideshow-interval", 'd', 0, G_OPTION_ARG_DOUBLE, &option_slideshow_interval, "Set slideshow interval", "n" },
 	{ "fullscreen", 'f', 0, G_OPTION_ARG_NONE, &option_start_fullscreen, "Start in fullscreen mode", NULL },
 	{ "fade", 'F', 0, G_OPTION_ARG_NONE, (gpointer)&option_fading, "Fade between images", NULL },
@@ -2534,7 +2536,7 @@ void image_loader_create_thumbnail(file_t *file) {/*{{{*/
 
 	// Draw black background
 	cairo_save(cr);
-	cairo_set_source_rgba(cr, 0., 0., 0., option_transparent_background ? 0. : 1.);
+	cairo_set_source_rgba(cr, 0., 0., 0., 0.);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cr);
 	cairo_restore(cr);
@@ -2542,22 +2544,6 @@ void image_loader_create_thumbnail(file_t *file) {/*{{{*/
 	// From here on, draw centered
 	cairo_translate(cr, (cairo_image_surface_get_width(surf) - scale_level * file->width) / 2, (cairo_image_surface_get_height(surf) - scale_level * file->height) / 2);
 	cairo_scale(cr, scale_level, scale_level);
-
-	// Draw background pattern
-	if(background_checkerboard_pattern != NULL && !option_transparent_background) {
-		cairo_save(cr);
-		cairo_new_path(cr);
-		unsigned skip_px = (unsigned)(1./scale_level);
-		if(skip_px == 0) {
-			skip_px = 1;
-		}
-		cairo_rectangle(cr, skip_px, skip_px, file->width - 2*skip_px, file->height - 2*skip_px);
-		cairo_close_path(cr);
-		cairo_clip(cr);
-		cairo_set_source(cr, background_checkerboard_pattern);
-		cairo_paint(cr);
-		cairo_restore(cr);
-	}
 
 	cairo_rectangle(cr, 0, 0, file->width, file->height);
 	cairo_clip(cr);
@@ -4677,7 +4663,7 @@ gboolean window_draw_thumbnail_montage(cairo_t *cr_arg) {/*{{{*/
 
 	// Draw black background
 	cairo_save(cr_arg);
-	cairo_set_source_rgba(cr_arg, 0., 0., 0., option_transparent_background ? 0. : 1.);
+	cairo_set_source_rgba(cr_arg, 0., 0., 0., 0.);
 	cairo_set_operator(cr_arg, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cr_arg);
 	cairo_restore(cr_arg);
@@ -4866,7 +4852,7 @@ void window_prerender_background_pixmap(int window_width, int window_height, dou
 			// Failure, abort.
 			return;
 		}
-		Pixmap pixmap = XCreatePixmap(display, window_xid, window_width * screen_scale_factor, window_height * screen_scale_factor, window_attributes.visual->bits_per_rgb * (3 + !!option_transparent_background));
+		Pixmap pixmap = XCreatePixmap(display, window_xid, window_width * screen_scale_factor, window_height * screen_scale_factor, window_attributes.visual->bits_per_rgb * (4));
 		cairo_surface_t *pixmap_surface = cairo_xlib_surface_create(display, pixmap, window_attributes.visual, window_width * screen_scale_factor, window_height * screen_scale_factor);
 
 		int ow = main_window_width, oh = main_window_height;
@@ -4987,7 +4973,7 @@ gboolean window_draw_callback(GtkWidget *widget, cairo_t *cr_arg, gpointer user_
 
 		// Draw black background
 		cairo_save(cr);
-		cairo_set_source_rgba(cr, 0., 0., 0., option_transparent_background ? 0. : 1.);
+		cairo_set_source_rgba(cr, 0., 0., 0., 0.);
 		cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 		cairo_paint(cr);
 		cairo_restore(cr);
@@ -4995,41 +4981,6 @@ gboolean window_draw_callback(GtkWidget *widget, cairo_t *cr_arg, gpointer user_
 		// From here on, draw at the target position
 		cairo_translate(cr, current_shift_x + x, current_shift_y + y);
 		cairo_transform(cr, &apply_transformation);
-
-		// Draw background pattern
-		if(background_checkerboard_pattern != NULL && !option_transparent_background) {
-			cairo_save(cr);
-			cairo_scale(cr, current_scale_level, current_scale_level);
-			cairo_new_path(cr);
-			// Cairo or gdkpixbuf, I don't know which, feather the border of images, leading
-			// to the background pattern overlaying images, which doesn't look nice at all.
-			// TODO The current workaround is to draw the background pattern 1px into the image
-			//      if in fullscreen mode, because that's where the pattern irretates most –
-			//      but I'd prefer a cleaner solution.
-			unsigned skip_px = (unsigned)(1./current_scale_level);
-			if(skip_px == 0) {
-				skip_px = 1;
-			}
-			if(CURRENT_FILE->width > 2*skip_px && CURRENT_FILE->height > 2*skip_px) {
-				cairo_rectangle(cr, skip_px, skip_px, CURRENT_FILE->width - 2*skip_px, CURRENT_FILE->height - 2*skip_px);
-			}
-			else {
-				cairo_rectangle(cr, 0, 0, CURRENT_FILE->width, CURRENT_FILE->height);
-			}
-			cairo_close_path(cr);
-			cairo_clip(cr);
-			if(option_background_pattern == CHECKERBOARD) {
-				cairo_set_source(cr, background_checkerboard_pattern);
-			}
-			else if(option_background_pattern == WHITE) {
-				cairo_set_source_rgba(cr, 1., 1., 1., 1.);
-			}
-			else {
-				cairo_set_source_rgba(cr, 0., 0., 0., 1.);
-			}
-			cairo_paint(cr);
-			cairo_restore(cr);
-		}
 
 		// Draw the scaled image.
 		if(option_negate) {
@@ -5155,7 +5106,7 @@ gboolean window_draw_callback(GtkWidget *widget, cairo_t *cr_arg, gpointer user_
 			// Draw black background
 			// This must be done explicitly in GTK2, otherwise the background will be white.
 			cairo_save(cr_arg);
-			cairo_set_source_rgba(cr_arg, 0., 0., 0., option_transparent_background ? 0. : 1.);
+			cairo_set_source_rgba(cr_arg, 0., 0., 0., 0.);
 			cairo_set_operator(cr_arg, CAIRO_OPERATOR_SOURCE);
 			cairo_paint(cr_arg);
 			cairo_restore(cr_arg);
@@ -6901,9 +6852,7 @@ gboolean window_button_release_callback(GtkWidget *widget, GdkEventButton *event
 	last_button_release_time = event->time;
 
 	if(!main_window_in_fullscreen) {
-		if(option_transparent_background) {
-			gtk_window_set_decorated(main_window, !gtk_window_get_decorated(main_window));
-		}
+        gtk_window_set_decorated(main_window, !gtk_window_get_decorated(main_window));
 		// All other bindings are only handled in fullscreen.
 		return FALSE;
 	}
@@ -7076,7 +7025,7 @@ void window_screen_changed_callback(GtkWidget *widget, GdkScreen *previous_scree
 		GdkMonitor *monitor = gdk_display_get_monitor_at_window(display, window);
 
 		static GdkMonitor *old_monitor = NULL;
-		if(old_monitor != NULL && option_transparent_background) {
+		if(old_monitor != NULL) {
 			window_screen_activate_rgba();
 		}
 		if(old_monitor != monitor) {
@@ -7094,7 +7043,7 @@ void window_screen_changed_callback(GtkWidget *widget, GdkScreen *previous_scree
 		guint monitor = gdk_screen_get_monitor_at_window(screen, window);
 
 		static guint old_monitor = 9999;
-		if(old_monitor != 9999 && option_transparent_background) {
+		if(old_monitor != 9999) {
 			window_screen_activate_rgba();
 		}
 		if(old_monitor != monitor) {
@@ -7123,19 +7072,12 @@ void window_realize_callback(GtkWidget *widget, gpointer user_data) {/*{{{*/
 	window_screen_changed_callback(NULL, NULL, NULL);
 
 	#if GTK_MAJOR_VERSION < 3
-		if(option_transparent_background) {
-			window_screen_activate_rgba();
-		}
+        window_screen_activate_rgba();
 	#endif
 
 	#if GTK_MAJOR_VERSION < 3 && !defined(_WIN32)
 		gdk_property_change(gtk_widget_get_window(GTK_WIDGET(main_window)), gdk_atom_intern("_GTK_THEME_VARIANT", FALSE), (GdkAtom)XA_STRING, 8, GDK_PROP_MODE_REPLACE, (guchar *)"dark", 4);
 	#endif
-
-	if(!option_transparent_background) {
-		// Ensure that extra pixels (shown e.g. while resizing the window) are black
-		window_clear_background_pixmap();
-	}
 
 	if(!main_window_in_fullscreen) {
 		// Start the timer to hide the cursor
@@ -7219,14 +7161,8 @@ void create_window() { /*{{{*/
 	gtk_widget_set_double_buffered(GTK_WIDGET(main_window), TRUE);
 #endif
 	gtk_widget_set_app_paintable(GTK_WIDGET(main_window), TRUE);
-
-	if(option_transparent_background) {
-		gtk_window_set_decorated(main_window, FALSE);
-	}
-
-	if(option_transparent_background) {
-		window_screen_activate_rgba();
-	}
+    gtk_window_set_decorated(main_window, FALSE);
+    window_screen_activate_rgba();
 }/*}}}*/
 gboolean initialize_gui() {/*{{{*/
 	setup_checkerboard_pattern();
