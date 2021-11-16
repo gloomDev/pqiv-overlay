@@ -292,12 +292,10 @@ gboolean option_hide_info_box = FALSE;
 gboolean option_start_fullscreen = FALSE;
 gdouble option_initial_scale = 1.0;
 gboolean option_start_with_slideshow_mode = FALSE;
-gboolean option_click_through = FALSE;
 gboolean option_sort = FALSE;
 enum { NAME, MTIME } option_sort_key = NAME;
 gboolean option_shuffle = FALSE;
 gboolean option_transparent_background = FALSE;
-gboolean option_keep_above = FALSE;
 gboolean option_watch_directories = FALSE;
 gboolean option_wait_for_images_to_appear = FALSE;
 gboolean option_fading = FALSE;
@@ -391,7 +389,6 @@ PQIV_DISABLE_PEDANTIC
 // implemented for option parsing.
 GOptionEntry options[] = {
 	{ "transparent-background", 'c', 0, G_OPTION_ARG_NONE, &option_transparent_background, "Borderless transparent window", NULL },
-	{ "keep-above", 0,0, G_OPTION_ARG_NONE, &option_keep_above, "Keep window above others", NULL },
 	{ "slideshow-interval", 'd', 0, G_OPTION_ARG_DOUBLE, &option_slideshow_interval, "Set slideshow interval", "n" },
 	{ "fullscreen", 'f', 0, G_OPTION_ARG_NONE, &option_start_fullscreen, "Start in fullscreen mode", NULL },
 	{ "fade", 'F', 0, G_OPTION_ARG_NONE, (gpointer)&option_fading, "Fade between images", NULL },
@@ -406,7 +403,6 @@ GOptionEntry options[] = {
 	{ "scale-images-up", 't', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, &option_scale_level_callback, "Scale images up to fill the whole screen", NULL },
 	{ "window-title", 'T', 0, G_OPTION_ARG_STRING, &option_window_title, "Set the title of the window. See manpage for available variables.", "TITLE" },
 	{ "zoom-level", 'z', 0, G_OPTION_ARG_DOUBLE, &option_initial_scale, "Set initial zoom level (1.0 is 100%)", "FLOAT" },
-	{ "click-through", 0, 0, G_OPTION_ARG_NONE, &option_click_through, "Window does not accept mouse input", NULL },
 
 #ifndef CONFIGURED_WITHOUT_EXTERNAL_COMMANDS
 	{ "command-1", '1', 0, G_OPTION_ARG_STRING, &external_image_filter_commands[0], "Bind the external COMMAND to key 1. See manpage for extended usage (commands starting with `>' or `|'). Use 2..9 for further commands.", "COMMAND" },
@@ -6618,19 +6614,19 @@ gboolean window_configure_callback(GtkWidget *widget, GdkEventConfigure *event, 
 	}
 	#endif
 
-	if(option_click_through) {
-		Display *display = GDK_SCREEN_XDISPLAY(gdk_screen_get_default());
-		unsigned long window_xid = gdk_x11_window_get_xid(gtk_widget_get_window(GTK_WIDGET(main_window)));
-		Region region = XCreateRegion();
-		XRectangle rectangle = { 0, 0, 1, 1 };
-		XUnionRectWithRegion(&rectangle, region, region);
-		XShapeCombineRegion(display, window_xid, ShapeInput, 0, 0, region, ShapeSet);
-		XDestroyRegion(region);	
-	}
-	
-	if(option_keep_above) {
-		gtk_window_set_keep_above(main_window, TRUE);
-	}
+
+	// Click Through
+    Display *display = GDK_SCREEN_XDISPLAY(gdk_screen_get_default());
+    unsigned long window_xid = gdk_x11_window_get_xid(gtk_widget_get_window(GTK_WIDGET(main_window)));
+    Region region = XCreateRegion();
+    XRectangle rectangle = { 0, 0, 1, 1 };
+    XUnionRectWithRegion(&rectangle, region, region);
+    XShapeCombineRegion(display, window_xid, ShapeInput, 0, 0, region, ShapeSet);
+    XDestroyRegion(region);
+
+    // Keep Above
+    gtk_window_set_keep_above(main_window, TRUE);
+
 	
 	return FALSE;
 }/*}}}*/
