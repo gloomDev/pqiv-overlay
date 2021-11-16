@@ -59,7 +59,7 @@ Usual stuff. `./configure && make && make install`. The configure script is
 optional if you only want gdk-pixbuf support and will auto-determine which
 backends to build if invoked without parameters.
 
-If you'd like to compile pqiv-overlay manually, you'll need
+If you'd like to compile manually, you'll need
 
  * gtk+ 3.0 *or* gtk+ 2.6
  * gdk-pixbuf 2.2 (included in gtk+)
@@ -82,6 +82,13 @@ related build-time dependencies are also run-time dependencies. If you need a
 shared version of the backends, for example for separate packaging of the
 binaries or to make the run-time dependencies optional, use the
 `--backends-build=shared` configure option.
+
+
+Note
+------
+You may need to add exclusions for 'Pqiv-overlay' in your compositor configuration
+to achieve true seamlessness.
+
 
 Thanks
 ------
