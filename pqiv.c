@@ -713,19 +713,6 @@ GHashTable *active_directory_watches;
 
 void set_scale_level_to_fit();
 void set_scale_level_for_screen();
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT
-	void info_text_queue_redraw();
-	void update_info_text(const char *);
-	#define UPDATE_INFO_TEXT(fmt, ...) { \
-		gchar *_info_text = g_strdup_printf(fmt, __VA_ARGS__);\
-		update_info_text(_info_text); \
-		g_free(_info_text); \
-	}
-#else
-	#define info_text_queue_redraw(...)
-	#define update_info_text(...)
-	#define UPDATE_INFO_TEXT(fmt, ...)
-#endif
 void queue_draw();
 gboolean main_window_center();
 void window_screen_changed_callback(GtkWidget *widget, GdkScreen *previous_screen, gpointer user_data);
@@ -1421,8 +1408,6 @@ BOSNode *load_images_handle_parameter_add_file(load_images_state_t state, file_t
 		// gui_initialized), because the high frequency of Xlib calls crashes
 		// the app (with an Xlib resource unavailable error) at least on my
 		// development machine.
-		update_info_text(NULL);
-		info_text_queue_redraw();
 		#ifndef CONFIGURED_WITHOUT_MONTAGE_MODE
 		if(application_mode == MONTAGE) {
 			D_LOCK(file_tree);
@@ -2336,9 +2321,6 @@ gboolean image_loaded_handler(gconstpointer node) {/*{{{*/
 		gtk_widget_show_all(GTK_WIDGET(main_window));
 	}
 
-	// Reset the info text
-	update_info_text(NULL);
-
 	// Output status for scripts
 	status_output();
 
@@ -2895,7 +2877,6 @@ void preload_adjacent_images() {/*{{{*/
 }/*}}}*/
 gboolean absolute_image_movement_still_unloaded_timer_callback(gpointer user_data) {/*{{{*/
 	if(user_data == (void *)current_file_node && !CURRENT_FILE->is_loaded) {
-		update_info_text(NULL);
 		gtk_widget_queue_draw(GTK_WIDGET(main_window));
 	}
 	return FALSE;
@@ -3591,13 +3572,6 @@ void hardlink_current_image() {/*{{{*/
 
 		cairo_surface_t *surface = get_scaled_image_surface_for_current_image();
 		if(surface) {
-			if(cairo_surface_write_to_png(surface, store_target) == CAIRO_STATUS_SUCCESS) {
-				UPDATE_INFO_TEXT("Stored what you see into %s", store_target);
-			}
-			else {
-				update_info_text("Failed to write to the .pqiv-select subdirectory");
-			}
-			info_text_queue_redraw();
 			cairo_surface_destroy(surface);
 		}
 
@@ -3612,8 +3586,6 @@ void hardlink_current_image() {/*{{{*/
 	if(g_file_test(link_target, G_FILE_TEST_EXISTS)) {
 		g_free(link_target);
 		g_free(current_file_basename);
-		update_info_text("File already exists in .pqiv-select");
-		info_text_queue_redraw();
 		bostree_node_weak_unref(file_tree, the_file);
 		return;
 	}
@@ -3638,20 +3610,9 @@ void hardlink_current_image() {/*{{{*/
 
 		cairo_surface_t *surface = get_scaled_image_surface_for_current_image();
 		if(surface) {
-			if(cairo_surface_write_to_png(surface, store_target) == CAIRO_STATUS_SUCCESS) {
-				UPDATE_INFO_TEXT("Failed to link file, but stored what you see into %s", store_target);
-			}
-			else {
-				update_info_text("Failed to write to the .pqiv-select subdirectory");
-			}
 			cairo_surface_destroy(surface);
-			info_text_queue_redraw();
 		}
 		g_free(store_target);
-	}
-	else {
-		update_info_text("Created hard-link into .pqiv-select");
-		info_text_queue_redraw();
 	}
 	g_free(link_target);
 	g_free(current_file_basename);
@@ -4100,102 +4061,6 @@ inline void queue_draw() {/*{{{*/
 	if(!current_image_drawn) {
 		gtk_widget_queue_draw(GTK_WIDGET(main_window));
 	}
-}/*}}}*/
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT /* option --without-info-text: Build without support for the info text */
-void update_info_text(const gchar *action) {/*{{{*/
-	D_LOCK(file_tree);
-	current_info_text_cached_font_size = -1;
-
-	#ifndef CONFIGURED_WITHOUT_MONTAGE_MODE
-	if(application_mode == MONTAGE) {
-		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv: Montage mode");
-		D_UNLOCK(file_tree);
-		return;
-	}
-	#endif
-
-	if(!current_file_node) {
-		const char *none_loaded = "No image loaded";
-		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv: No image loaded");
-		D_UNLOCK(file_tree);
-		return;
-	}
-
-	gchar *file_name;
-	if((CURRENT_FILE->file_flags & FILE_FLAGS_MEMORY_IMAGE) != 0) {
-		file_name = g_strdup_printf("-");
-	}
-	else {
-		file_name = g_strdup(CURRENT_FILE->file_name);
-	}
-	const gchar *display_name = CURRENT_FILE->display_name;
-
-	// Free old info text
-	if(current_info_text != NULL) {
-		g_free(current_info_text);
-		current_info_text = NULL;
-	}
-
-	if(!CURRENT_FILE->is_loaded) {
-		// Image not loaded yet. Use loading information and abort.
-		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv");
-
-		g_free(file_name);
-		D_UNLOCK(file_tree);
-		return;
-	}
-
-	// Prepare main window title
-	GString *new_window_title = g_string_new(NULL);
-	const char *window_title_iter = option_window_title;
-	const char *temporary_iter;
-	while(*window_title_iter) {
-		temporary_iter = g_strstr_len(window_title_iter, -1, "$");
-		if(!temporary_iter) {
-			g_string_append(new_window_title, window_title_iter);
-			break;
-		}
-		g_string_append_len(new_window_title, window_title_iter, (gssize)(temporary_iter - window_title_iter));
-
-		window_title_iter = temporary_iter + 1;
-
-		if(g_strstr_len(window_title_iter, 12, "BASEFILENAME") != NULL) {
-			temporary_iter = g_filename_display_basename(file_name);
-			g_string_append(new_window_title, temporary_iter);
-			window_title_iter += 12;
-		}
-		else if(g_strstr_len(window_title_iter, 8, "FILENAME") != NULL) {
-			g_string_append(new_window_title, display_name);
-			window_title_iter += 8;
-		}
-		else if(g_strstr_len(window_title_iter, 5, "WIDTH") != NULL) {
-			g_string_append_printf(new_window_title, "%d", CURRENT_FILE->width);
-			window_title_iter += 5;
-		}
-		else if(g_strstr_len(window_title_iter, 6, "HEIGHT") != NULL) {
-			g_string_append_printf(new_window_title, "%d", CURRENT_FILE->height);
-			window_title_iter += 6;
-		}
-		else if(g_strstr_len(window_title_iter, 4, "ZOOM") != NULL) {
-			g_string_append_printf(new_window_title, "%02.2f", (current_scale_level * 100));
-			window_title_iter += 4;
-		}
-		else if(g_strstr_len(window_title_iter, 12, "IMAGE_NUMBER") != NULL) {
-			g_string_append_printf(new_window_title, "%d", (unsigned int)(bostree_rank(current_file_node) + 1));
-			window_title_iter += 12;
-		}
-		else if(g_strstr_len(window_title_iter, 11, "IMAGE_COUNT") != NULL) {
-			g_string_append_printf(new_window_title, "%d", (unsigned int)(bostree_node_count(file_tree)));
-			window_title_iter += 11;
-		}
-		else {
-			g_string_append_c(new_window_title, '$');
-		}
-	}
-	D_UNLOCK(file_tree);
-	g_free(file_name);
-	gtk_window_set_title(GTK_WINDOW(main_window), new_window_title->str);
-	g_string_free(new_window_title, TRUE);
 }/*}}}*/
 #endif
 gboolean window_close_callback(GtkWidget *object, gpointer user_data) {/*{{{*/
@@ -5364,14 +5229,12 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			if(!is_current_file_loaded()) return;
 			current_shift_y += parameter.pint;
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			update_info_text(NULL);
 			break;
 
 		case ACTION_SHIFT_X:
 			if(!is_current_file_loaded()) return;
 			current_shift_x += parameter.pint;
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			update_info_text(NULL);
 			break;
 
 		case ACTION_SET_SLIDESHOW_INTERVAL_RELATIVE:
@@ -5386,8 +5249,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				g_source_remove(slideshow_timeout_id);
 				slideshow_timeout_id = gdk_threads_add_timeout(option_slideshow_interval * 1000, slideshow_timeout_callback, NULL);
 			}
-			UPDATE_INFO_TEXT("Slideshow interval set to %d seconds", (int)option_slideshow_interval);
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_SET_SCALE_LEVEL_RELATIVE:
@@ -5422,7 +5283,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 					queue_draw();
 				}
 			}
-			update_info_text(NULL);
 			break;
 
 		case ACTION_TOGGLE_SCALE_MODE:
@@ -5443,14 +5303,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			set_scale_level_for_screen();
 			main_window_adjust_for_image();
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			switch(option_scale) {
-				case NO_SCALING: update_info_text("Scaling disabled"); break;
-				case AUTO_SCALEDOWN: update_info_text("Automatic scaledown enabled"); break;
-				case AUTO_SCALEUP: update_info_text("Automatic scaling enabled"); break;
-				case FIXED_SCALE: update_info_text("Maintaining current scale level"); break;
-				case SCALE_TO_FIT_WINDOW: update_info_text("Maintaining window size"); break;
-				default: break;
-			}
 			break;
 
 		case ACTION_SET_SCALE_MODE_SCREEN_FRACTION:
@@ -5479,15 +5331,11 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				option_shuffle = parameter.pint == 1;
 			}
 			preload_adjacent_images();
-			update_info_text(option_shuffle ? "Shuffle mode enabled" : "Shuffle mode disabled");
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_RELOAD:
 			if(!is_current_file_loaded()) return;
 			CURRENT_FILE->force_reload = TRUE;
-			update_info_text("Reloading image..");
-			info_text_queue_redraw();
 			D_LOCK(file_tree);
 			queue_image_load(bostree_node_weak_ref(relative_image_pointer(0)));
 			D_UNLOCK(file_tree);
@@ -5503,7 +5351,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			set_scale_level_for_screen();
 			main_window_adjust_for_image();
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			update_info_text(NULL);
 			break;
 
 		case ACTION_TOGGLE_FULLSCREEN:
@@ -5525,7 +5372,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				cairo_matrix_t transformation = { -1., 0., 0., 1., image_width, 0 };
 				transform_current_image(&transformation);
 			}
-			update_info_text("Image flipped horizontally");
 			break;
 
 		case ACTION_FLIP_VERTICALLY:
@@ -5537,7 +5383,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				cairo_matrix_t transformation = { 1., 0., 0., -1., 0, image_height };
 				transform_current_image(&transformation);
 			}
-			update_info_text("Image flipped vertically");
 			break;
 
 		case ACTION_ROTATE_LEFT:
@@ -5549,7 +5394,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				cairo_matrix_t transformation = { 0., -1., 1., 0., 0, image_width };
 				transform_current_image(&transformation);
 			}
-			update_info_text("Image rotated left");
 			break;
 
 		case ACTION_ROTATE_RIGHT:
@@ -5561,7 +5405,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				cairo_matrix_t transformation = { 0., 1., -1., 0., image_height, 0. };
 				transform_current_image(&transformation);
 			}
-			update_info_text("Image rotated right");
 			break;
 
 #ifndef CONFIGURED_WITHOUT_JUMP_DIALOG
@@ -5578,13 +5421,10 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 					g_source_remove(slideshow_timeout_id);
 				}
 				slideshow_timeout_id = -1;
-				update_info_text("Slideshow disabled");
 			}
 			else {
 				slideshow_timeout_id = gdk_threads_add_timeout(option_slideshow_interval * 1000, slideshow_timeout_callback, NULL);
-				update_info_text("Slideshow enabled");
 			}
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_HARDLINK_CURRENT_IMAGE:
@@ -5643,12 +5483,8 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 					((CURRENT_FILE->file_flags & FILE_FLAGS_MEMORY_IMAGE) != 0 && command[0] != '|')
 					|| ((CURRENT_FILE->file_flags & FILE_FLAGS_ANIMATION) != 0 && command[0] == '|')) {
 
-					update_info_text("Command incompatible with current file type");
-					info_text_queue_redraw();
 				}
 				else {
-					UPDATE_INFO_TEXT("Executing command %s", command);
-					info_text_queue_redraw();
 					gtk_widget_queue_draw(GTK_WIDGET(main_window));
 
 					command = g_strdup(command);
@@ -5783,7 +5619,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			invalidate_current_scaled_image_surface();
 			set_scale_level_for_screen();
 			main_window_adjust_for_image();
-			UPDATE_INFO_TEXT("Scale level adjusted to fit %dx%d px", scale_to_fit_size.width, scale_to_fit_size.height);
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
 			break;
 
@@ -5791,14 +5626,12 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			if(!is_current_file_loaded()) return;
 			current_shift_x = parameter.pint;
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			update_info_text(NULL);
 			break;
 
 		case ACTION_SET_SHIFT_Y:
 			if(!is_current_file_loaded()) return;
 			current_shift_y = parameter.pint;
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			update_info_text(NULL);
 			break;
 
 		case ACTION_BIND_KEY:
@@ -5851,7 +5684,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				}
 
 				gtk_widget_queue_draw(GTK_WIDGET(main_window));
-				update_info_text(NULL);
 			}
 			break;
 
@@ -5866,21 +5698,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			}
 			else {
 				option_interpolation_quality = parameter.pint - 1;
-			}
-
-			switch(option_interpolation_quality) {
-				case AUTO:
-					update_info_text("Interpolation quality set to auto-determine.");
-					break;
-				case FAST:
-					update_info_text("Interpolation quality set to fast.");
-					break;
-				case GOOD:
-					update_info_text("Interpolation quality set to good.");
-					break;
-				case BEST:
-					update_info_text("Interpolation quality set to best.");
-					break;
 			}
 
 			invalidate_current_scaled_image_surface();
@@ -5906,7 +5723,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			}
 			D_UNLOCK(file_tree);
 			image_animation_timeout_callback(current_file_node);
-			update_info_text(NULL);
 			break;
 
 		case ACTION_ANIMATION_CONTINUE:
@@ -5922,7 +5738,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 					image_animation_timeout_callback,
 					(gpointer)current_file_node);
 			}
-			update_info_text(NULL);
 			break;
 
 		case ACTION_ANIMATION_SET_SPEED_ABSOLUTE:
@@ -5933,9 +5748,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			if(current_image_animation_speed_scale < 0) {
 				current_image_animation_speed_scale = 0;
 			}
-
-			UPDATE_INFO_TEXT("Animation speed adjusted to %03.1f%%", current_image_animation_speed_scale * 100.);
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_ANIMATION_SET_SPEED_RELATIVE:
@@ -5946,9 +5758,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			if(current_image_animation_speed_scale < 0) {
 				current_image_animation_speed_scale = 0;
 			}
-
-			UPDATE_INFO_TEXT("Animation speed adjusted to %03.1f%%", current_image_animation_speed_scale * 100.);
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_GOTO_EARLIER_FILE:
@@ -5964,8 +5773,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 		case ACTION_SET_FADE_DURATION:
 			option_fading_duration = parameter.pdouble;
 			option_fading = option_fading_duration > 0;
-			UPDATE_INFO_TEXT("Fade duration adjusted to %2.2f seconds", option_fading_duration);
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_SET_KEYBOARD_TIMEOUT:
@@ -6004,12 +5811,7 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			option_thumbnails.auto_generate_for_adjacents = parameter.pint;
 			if(parameter.pint > 0) {
 				preload_adjacent_images();
-				UPDATE_INFO_TEXT("Thumbnail generation enabled for %d adjacent images", parameter.pint);
 			}
-			else {
-				update_info_text("Thumbnail generation disabled");
-			}
-			info_text_queue_redraw();
 			break;
 
 		case ACTION_MONTAGE_MODE_ENTER:
@@ -6036,7 +5838,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			montage_window_control.selected_node = bostree_node_weak_ref(current_file_node);
 			montage_window_move_cursor(0, 0, 0);
 			D_UNLOCK(file_tree);
-			update_info_text(NULL);
 			main_window_adjust_for_image();
 			set_cursor_auto_hide_mode(TRUE);
 
@@ -6336,8 +6137,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 				}
 				D_UNLOCK(file_tree);
 			}
-
-			update_info_text(NULL);
 			return;
 			break;
 #endif // without montage
@@ -6364,9 +6163,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			if(option_background_pattern > WHITE || option_background_pattern < CHECKERBOARD) {
 				option_background_pattern = CHECKERBOARD;
 			}
-			UPDATE_INFO_TEXT("Background pattern set to %s", option_background_pattern == BLACK ? "black" :
-															 option_background_pattern == WHITE ? "white" :
-															 "checkerboard");
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
 			break;
 
@@ -6377,7 +6173,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			else {
 				option_negate = parameter.pint - 2;
 			}
-			UPDATE_INFO_TEXT("Negate mode %s", option_negate ? "enabled" : "disabled");
 			gtk_widget_queue_draw(GTK_WIDGET(main_window));
 			break;
 
@@ -6720,7 +6515,6 @@ gboolean window_motion_notify_callback(GtkWidget *widget, GdkEventMotion *event,
 			if(current_scale_level < .01) {
 				current_scale_level = .01;
 			}
-			update_info_text(NULL);
 			invalidate_current_scaled_image_surface();
 		}
 
@@ -6829,7 +6623,6 @@ gboolean window_state_into_fullscreen_actions(gpointer user_data) {/*{{{*/
 			window_hide_cursor();
 			set_cursor_auto_hide_mode(FALSE);
 		}
-		update_info_text(NULL);
 	}
 
 	main_window_width = screen_geometry.width;
@@ -6850,7 +6643,6 @@ gboolean window_state_out_of_fullscreen_actions(gpointer user_data) {/*{{{*/
 		current_shift_y = 0;
 		window_show_cursor();
 		set_cursor_auto_hide_mode(TRUE);
-		update_info_text(NULL);
 	}
 
 	// If the fullscreen state is left, readjust image placement/size/..
@@ -7740,7 +7532,7 @@ void recreate_window() {/*{{{*/
 // }}}
 
 #ifndef CONFIGURED_WITHOUT_INFO_TEXT
-gboolean load_images_thread_update_info_text(gpointer user_data) {/*{{{*/
+gboolean load_images_thread_without_info(gpointer user_data) {/*{{{*/
 	// If the window is already visible and new files have been found, update
 	// the info text every second
 	static gsize last_image_count = 0;
@@ -7751,9 +7543,6 @@ gboolean load_images_thread_update_info_text(gpointer user_data) {/*{{{*/
 
 		if(image_count != last_image_count) {
 			last_image_count = image_count;
-
-			update_info_text(NULL);
-			info_text_queue_redraw();
 		}
 	}
 	return TRUE;
@@ -7765,7 +7554,7 @@ gpointer load_images_thread(gpointer user_data) {/*{{{*/
 	if(user_data != NULL) {
 		// Use the info text updater only if this function was called in a separate
 		// thread (--lazy-load option)
-		event_source = gdk_threads_add_timeout(1000, load_images_thread_update_info_text, NULL);
+		event_source = gdk_threads_add_timeout(1000, load_images_thread_without_info, NULL);
 	}
 #endif
 
@@ -7791,7 +7580,7 @@ gpointer load_images_thread(gpointer user_data) {/*{{{*/
 #ifndef CONFIGURED_WITHOUT_INFO_TEXT
 	if(user_data != NULL) {
 		g_source_remove(event_source);
-		load_images_thread_update_info_text(NULL);
+		load_images_thread_without_info(NULL);
 	}
 #endif
 	return NULL;
