@@ -41,7 +41,7 @@ endif
 
 # First things first: Require at least one backend
 ifeq ($(BACKENDS),)
-$(error Building pqiv without any backends is unsupported.)
+$(error Building pqiv-overlay without any backends is unsupported.)
 endif
 
 # pkg-config lines for the main program
@@ -206,11 +206,11 @@ pqiv.desktop: $(HEADERS)
 		echo "Version=1.0"; \
 		echo "Type=Application"; \
 		echo "Comment=Powerful quick image viewer"; \
-		echo "Name=pqiv"; \
+		echo "Name=pqiv-overlay"; \
 		echo "NoDisplay=true"; \
 		echo "Icon=emblem-photos"; \
-		echo "TryExec=$(PREFIX)/bin/pqiv"; \
-		echo "Exec=$(PREFIX)/bin/pqiv %F"; \
+		echo "TryExec=$(PREFIX)/bin/pqiv-overlay"; \
+		echo "Exec=$(PREFIX)/bin/pqiv-overlay %F"; \
 		echo "MimeType=$(shell cat $(foreach BACKEND, $(sort $(BACKENDS)), $(SOURCEDIR)backends/$(BACKEND).mime) /dev/null | sort | uniq | awk 'ORS=";"')"; \
 		echo "Categories=Graphics;"; \
 		echo "Keywords=Viewer;" \
@@ -218,59 +218,59 @@ pqiv.desktop: $(HEADERS)
 
 install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	install pqiv$(EXECUTABLE_EXTENSION) $(DESTDIR)$(PREFIX)/bin/pqiv$(EXECUTABLE_EXTENSION)
+	install pqiv-overlay$(EXECUTABLE_EXTENSION) $(DESTDIR)$(PREFIX)/bin/pqiv-overlay$(EXECUTABLE_EXTENSION)
 	-mkdir -p $(DESTDIR)$(MANDIR)/man1
-	-install -m 644 $(SOURCEDIR)pqiv.1 $(DESTDIR)$(MANDIR)/man1/pqiv.1
+	-install -m 644 $(SOURCEDIR)pqiv-overlay.1 $(DESTDIR)$(MANDIR)/man1/pqiv-overlay.1
 	-mkdir -p $(DESTDIR)$(PREFIX)/share/applications
-	-install -m 644 pqiv.desktop $(DESTDIR)$(PREFIX)/share/applications/pqiv.desktop
+	-install -m 644 pqiv-overlay.desktop $(DESTDIR)$(PREFIX)/share/applications/pqiv-overlay.desktop
 ifeq ($(BACKENDS_BUILD), shared)
-	mkdir -p $(DESTDIR)$(LIBDIR)/pqiv
-	install $(SHARED_OBJECTS) $(DESTDIR)$(LIBDIR)/pqiv/
+	mkdir -p $(DESTDIR)$(LIBDIR)/pqiv-overlay
+	install $(SHARED_OBJECTS) $(DESTDIR)$(LIBDIR)/pqiv-overlay/
 endif
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/pqiv$(EXECUTABLE_EXTENSION)
-	rm -f $(DESTDIR)$(MANDIR)/man1/pqiv.1
-	rm -f $(DESTDIR)$(PREFIX)/share/applications/pqiv.desktop
+	rm -f $(DESTDIR)$(PREFIX)/bin/pqiv-overlay$(EXECUTABLE_EXTENSION)
+	rm -f $(DESTDIR)$(MANDIR)/man1/pqiv-overlay.1
+	rm -f $(DESTDIR)$(PREFIX)/share/applications/pqiv-overlay.desktop
 ifeq ($(BACKENDS_BUILD), shared)
-	rm -f $(foreach SO_FILE, $(SHARED_OBJECTS), $(DESTDIR)$(LIBDIR)/pqiv/$(notdir $(SO_FILE)))
-	rmdir $(DESTDIR)$(LIBDIR)/pqiv
+	rm -f $(foreach SO_FILE, $(SHARED_OBJECTS), $(DESTDIR)$(LIBDIR)/pqiv-overlay/$(notdir $(SO_FILE)))
+	rmdir $(DESTDIR)$(LIBDIR)/pqiv-overlay
 endif
 
 # Rudimentary MacOS bundling
 # Only really useful for opening pqiv using "open pqiv.app --args ..." from the
 # command line right now, but that already has the benefit that the application
 # window will be visible right away
-pqiv.app: pqiv.app.tmp
+pqiv-overlay.app: pqiv-overlay.app.tmp
 	rm -f ../$@
-	cd pqiv.app.tmp && zip -9r ../$@ .
+	cd pqiv-overlay.app.tmp && zip -9r ../$@ .
 
-pqiv.app.tmp: pqiv.app.tmp/Contents/MacOS/pqiv pqiv.app.tmp/Contents/Info.plist pqiv.app.tmp/Contents/PkgInfo
+pqiv-overlay.app.tmp: pqiv-overlay.app.tmp/Contents/MacOS/pqiv-overlay pqiv-overlay.app.tmp/Contents/Info.plist pqiv-overlay.app.tmp/Contents/PkgInfo
 
-pqiv.app.tmp/Contents/MacOS/pqiv:
-	-mkdir -p pqiv.app.tmp/Contents/MacOS
-	install pqiv$(EXECUTABLE_EXTENSION) $@
+pqiv-overlay.app.tmp/Contents/MacOS/pqiv-overlay:
+	-mkdir -p pqiv-overlay.app.tmp/Contents/MacOS
+	install pqiv-overlay$(EXECUTABLE_EXTENSION) $@
 
-pqiv.app.tmp/Contents/PkgInfo:
-	-mkdir -p pqiv.app.tmp/Contents
+pqiv-overlay.app.tmp/Contents/PkgInfo:
+	-mkdir -p pqiv-overlay.app.tmp/Contents
 	$(SILENT_GEN) ( \
 		echo -n "APPL????"; \
 	) > $@
 
-pqiv.app.tmp/Contents/Info.plist: $(HEADERS)
-	-mkdir -p pqiv.app.tmp/Contents
+pqiv-overlay.app.tmp/Contents/Info.plist: $(HEADERS)
+	-mkdir -p pqiv-overlay.app.tmp/Contents
 	$(SILENT_GEN) ( \
 		echo '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
-		echo '<plist version="1.0"><dict><key>CFBundleName</key><string>pqiv</string><key>CFBundleDisplayName</key><string>pqiv</string>'; \
-		echo '<key>CFBundleIdentifier</key><string>com.pberndt.pqiv</string><key>CFBundleVersion</key><string>$(PQIV_VERSION_STRING)</string>'; \
-		echo '<key>CFBundlePackageType</key><string>APPL</string><key>CFBundleExecutable</key><string>pqiv</string><key>LSMinimumSystemVersion</key>'; \
+		echo '<plist version="1.0"><dict><key>CFBundleName</key><string>pqiv-overlay</string><key>CFBundleDisplayName</key><string>pqiv-overlay</string>'; \
+		echo '<key>CFBundleIdentifier</key><string>com.pberndt.pqiv-overlay</string><key>CFBundleVersion</key><string>$(PQIV_VERSION_STRING)</string>'; \
+		echo '<key>CFBundlePackageType</key><string>APPL</string><key>CFBundleExecutable</key><string>pqiv-overlay</string><key>LSMinimumSystemVersion</key>'; \
 		echo '<string>10.4</string><key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeMIMETypes</key><array>'; \
 		cat $(foreach BACKEND, $(sort $(BACKENDS)), $(SOURCEDIR)backends/$(BACKEND).mime) /dev/null | sort | uniq | awk '{print "<string>" $$0 "</string>"}'; \
 		echo '</array></dict></array></dict></plist>'; \
 	) > $@
 
 clean:
-	rm -f pqiv$(EXECUTABLE_EXTENSION) *.o backends/*.o backends/*.so lib/*.o backends/initializer-*.c pqiv.desktop
+	rm -f pqiv-overlay$(EXECUTABLE_EXTENSION) *.o backends/*.o backends/*.so lib/*.o backends/initializer-*.c pqiv-overlay.desktop
 
 distclean: clean
 	rm -f config.make

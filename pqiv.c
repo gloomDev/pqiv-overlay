@@ -3861,7 +3861,7 @@ void do_jump_dialog() { /* {{{ */
 	}
 
 	// Create dialog box
-	GtkWidget *dlg_window = gtk_dialog_new_with_buttons("pqiv: Jump to image",
+	GtkWidget *dlg_window = gtk_dialog_new_with_buttons("pqiv-overlay: Jump to image",
 		main_window,
 		GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
 		"_OK",
@@ -6920,7 +6920,7 @@ gboolean initialize_gui_or_quit_callback(gpointer user_data) {/*{{{*/
 	return FALSE;
 }/*}}}*/
 gboolean help_show_version(const gchar *option_name, const gchar *value, gpointer data, GError **error) {/*{{{*/
-	g_print("pqiv " PQIV_VERSION "\n");
+	g_print("pqiv-overlay " PQIV_VERSION "\n");
 	exit(0);
 	return FALSE;
 }
