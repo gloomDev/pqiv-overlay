@@ -20,9 +20,9 @@ more powerful tool. Today, pqiv stands for powerful quick image viewer.
 About pqiv-overlay
 ------------------
 
-pqiv-overlay seeks to specialize pqiv for the sole purpose of providing 
+pqiv-overlay is a specialized fork with the sole purpose of providing 
 *seamless* graphical overlays on your desktop. It is intended to be installed 
-alongside pqiv or independently.
+independently of pqiv.
 
 
 pqiv Features
@@ -42,10 +42,10 @@ pqiv Features
    cycling and binding multiple actions to a single key
 
 
-pqiv-overlay Features
+pqiv-overlay +Features
 ---------------------
 
- * Full window transparency
+ * Permanent full window transparency
  * Click-through
  * Keep-above other windows
  * Disabled information bar
