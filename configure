@@ -1,0 +1,393 @@
+#!/usr/bin/env bash
+#
+# Configure script for pqiv. Running this script is optional if you only want
+# gdk-pixbuf support, but still recommended.
+#
+
+tempdir() {
+	NAME=tmp_${RANDOM}
+	while ! mkdir "${NAME}" 2>/dev/null; do
+		NAME=tmp_${RANDOM}
+	done
+	echo ${NAME}
+}
+
+PREFIX=/usr
+DESTDIR=
+GTK_VERSION=0
+CROSS=
+BINARY_EXTENSION=
+LIBDIR=
+MANDIR=
+BACKENDS=
+ENFORCED_BACKENDS=
+DISABLED_BACKENDS=
+EXTRA_DEFS=
+BACKENDS_BUILD=static
+DEBUG_DEFS=
+
+# Check if configure was called from another directory;
+# support for out-of-source-tree builds
+STARTUP_DIR="$(pwd)"
+SOURCE_DIR="$( (cd "$(dirname "$0")"; pwd -P) )"
+cd "$SOURCE_DIR"
+
+# For development, you can set default settings here
+[ -x ./configure-dev ] && . ./configure-dev
+
+# Help and options
+help() {
+	cat >&2 <<EOF
+pqiv configuration
+
+general options:
+  --prefix=..           Set the prefix for installed files [/usr]
+  --destdir=..          Set the destination prefix for "make install" [/]
+  --libdir=..           Set the directory for shared libraries [\$PREFIX/lib]
+  --gtk-version=2       Use GTK+-2.0 even if GTK+-3.0 is available
+  --cross=..            Set a cross-compiler prefix (e.g. \`i686-pc-mingw32-')
+
+  Some of the usual autotools options are supported as well for advanced users.
+  See the source code of the configure script.
+
+options to select pqiv's backends:
+  --backends=..         Select which backends to include in pqiv
+                        (autodetermined by default)
+                        Available:
+                          archive (generic archive file support),
+                          archive_cbx (*.cb? comic book archive support),
+                          libav (Video support, works with ffmpeg as well),
+                          gdkpixbuf (images),
+                          poppler (PDF),
+                          spectre (PS/EPS),
+                          wand (ImageMagick, various formats)
+                          webp (WebP format)
+  --with[out]-<backend> Alternative syntax for backend selection. Non-specified backends are
+                        autodetermined.
+  --backends-build=..   Either \`shared' to compile the backends as shared libraries,
+                        or \`static' to compile them into pqiv. \`shared' is only of use if you
+                        plan to package pqiv and want to get rid of the run-time dependencies,
+                        so this defaults to \`static'.
+
+options to remove features from pqiv:
+EOF
+
+	awk 'BEGIN { FS="ifndef|ifdef|option|:|/\\*|\\*/" } /ifn?def .+ option / { print $2 " " $4 " " $5 }' pqiv.c | while read DEFNAME OPTFLAG DESCRIPTION; do
+		if [ ${#DESCRIPTION} -gt 50 ]; then
+			printf "  %-22s\n  %-22s%s\n" $OPTFLAG "" "$DESCRIPTION" >&2
+		else
+			printf "  %-22s%s\n" $OPTFLAG "$DESCRIPTION" >&2
+		fi
+	done
+	echo >&2
+}
+
+while [ $# -gt 0 ]; do
+	PARAMETER=${1%=*}
+	VALUE=${1#*=}
+
+	case $PARAMETER in
+		--prefix)
+			PREFIX=$VALUE
+			;;
+		--destdir)
+			DESTDIR=$VALUE
+			;;
+		--libdir)
+			LIBDIR=${VALUE}
+			LIBDIR="${LIBDIR//\{/(}"
+			LIBDIR="${LIBDIR//\}/)}"
+			LIBDIR="${LIBDIR//prefix/PREFIX}"
+			;;
+		--gtk-version)
+			GTK_VERSION=$VALUE
+			;;
+		-h)
+			help
+			exit 0
+			;;
+		--help)
+			help
+			exit 0
+			;;
+		--cross)
+			CROSS=$VALUE
+			if [ "${CROSS: -1}" != "-" ]; then
+				CROSS="$CROSS-"
+			fi
+			;;
+		--backends-build)
+			BACKENDS_BUILD=$VALUE
+			if [ "$BACKENDS_BUILD" != "static" -a "$BACKENDS_BUILD" != "shared" ]; then
+				echo "Invalid argument to --backends-build: Value must be either \`static' or \`shared'." >&2
+				exit 1
+			fi
+			;;
+		--backends)
+			BACKENDS="${VALUE//,/ }"
+			for NAME in ${BACKENDS}; do
+				[ -e backends/${NAME}.c ] && continue
+				echo "Invalid argument to --backends: Backend ${NAME} was not found" >&2
+				exit 1
+			done
+			;;
+		# Undocumented options for autoconf (esp. dh_auto_configure)
+		# compatibility Note to maintainers: These options are here to make it
+		# simpler to package pqiv, because they allow to run autotools wrappers
+		# against this package.  I will maintain them, but I'd recommend
+		# against using them if you can avoid it.
+		--host)
+			CROSS=${VALUE}-
+			;;
+		--mandir)
+			MANDIR=${VALUE}
+			MANDIR="${MANDIR//\{/(}"
+			MANDIR="${MANDIR//\}/)}"
+			MANDIR="${MANDIR//prefix/PREFIX}"
+			echo "Use of autoconf option --mandir is discouraged, because support is incomplete. Rewrote \`$VALUE' to \`$MANDIR' and used that as the MANDIR Make variable." >&2
+			;;
+		--disable-silent-rules)
+			VERBOSE=1
+			;;
+		--infodir | --sysconfdir | --includedir | --localstatedir | --libexecdir | --disable-maintainer-mode | --disable-dependency-tracking | --build)
+			echo "autoconf option ${PARAMETER} ignored" >&2
+			;;
+		--no-sorting | --no-compositing | --no-fading | --no-commands | --no-config-file | --no-inotify | --no-animations | --binary-name)
+			echo "obsolete 1.0 option ${PARAMETER} ignored" >&2
+			;;
+		*)
+			# Check for disableable feature flag
+			DEF=$(
+				awk 'BEGIN { FS="ifndef|ifdef|option|:|/\\*|\\*/" } /ifn?def .+ option / { print $2 " " $4 " " $5 }' pqiv.c | while read DEFNAME OPTFLAG DESCRIPTION; do
+					if [ "${PARAMETER}" = "${OPTFLAG}" ]; then
+						echo "-D${DEFNAME}"
+					fi
+				done
+			)
+			if [ -n "${DEF}" ]; then
+				EXTRA_DEFS="${EXTRA_DEFS} ${DEF}"
+			else
+				# Check for dynamic backend en-/dis-abling flag
+				if [ "${PARAMETER#--without-}" != "${PARAMETER}" ]; then
+					NAME="${PARAMETER#--without-}"
+					if ! [ -e backends/${NAME}.c ]; then
+						echo "Unknown option: $1" >&2
+						exit 1
+					fi
+					DISABLED_BACKENDS="${PARAMETER#--without-} ${DISABLED_BACKENDS}"
+				elif [ "${PARAMETER#--with-}" != "${PARAMETER}" ]; then
+					NAME="${PARAMETER#--with-}"
+					if ! [ -e backends/${NAME}.c ]; then
+						echo "Unknown option: $1" >&2
+						exit 1
+					fi
+					ENFORCED_BACKENDS="${NAME} ${ENFORCED_BACKENDS}"
+				else
+					echo "Unknown option: $1" >&2
+					help
+					exit 1
+				fi
+			fi
+	esac
+	shift
+done
+
+# The makefile is for GNU make
+if [ -z $MAKE ]; then
+	MAKE=make
+	if ! (${MAKE} -v 2>&1 | grep -q "GNU Make"); then
+		MAKE=gmake
+		if ! which $MAKE 2>&1 >/dev/null; then
+			echo "GNU make is required for building pqiv" >&2
+			exit 1
+		fi
+	fi
+fi
+
+# If cross-compiling, check if cc is present (usually it is not)
+if [ -n "$CROSS" -a -z "$CC" ]; then
+	echo -n "Checking for cross-compiler cc..              "
+	if ! which ${CROSS}cc >/dev/null 2>&1; then
+		if which ${CROSS}clang >/dev/null 2>&1; then
+			export CC=clang
+		elif which ${CROSS}gcc >/dev/null 2>&1; then
+			export CC=gcc
+		else
+			echo
+			echo
+			echo "No compiler found. Please set the appropriate CC environment variable." >&2
+			exit 1
+		fi
+		echo "using ${CROSS}${CC}"
+	else
+		echo "ok"
+	fi
+fi
+
+# Determine binary extension (for Windows)
+echo -n "Determining executable extension..            "
+DIR=`tempdir`
+cd $DIR
+echo 'int main(int argc, char *argv[]) { return 0; }' > test.c
+${CROSS}${CC:-cc} ${CFLAGS} test.c ${LDFLAGS}
+RV=$?
+rm -f test.c
+EXECUTABLE=`ls`
+rm -f $EXECUTABLE
+cd ..
+rmdir $DIR
+if [ "$RV" != 0 ]; then
+	echo
+	echo
+	echo "The compiler can't compile executables!?" >&2
+	exit 1
+fi
+EXECUTABLE_EXTENSION=${EXECUTABLE#a}
+if [ "$EXECUTABLE_EXTENSION" = ".out" ]; then
+	EXECUTABLE_EXTENSION=
+fi
+echo ${EXECUTABLE_EXTENSION:-(none)}
+
+# Do a rudimental prerequisites check to have user-friendlier error messages
+if [ -n "${CROSS}" -a -z "${PKG_CONFIG}" ]; then
+	echo -n "Checking for pkg-config..                     "
+	PKG_CONFIG=${CROSS}pkg-config
+	if ! which ${PKG_CONFIG} >/dev/null 2>&1; then
+		echo
+		echo
+		echo "Did not find a specialized tool ${CROSS}pkg-config, defaulting to pkg-config" >&2
+		echo "If you really ARE cross-compiling, the build might therefore fail!" >&2
+		echo
+		PKG_CONFIG=pkg-config
+	else
+		echo "${PKG_CONFIG}"
+	fi
+fi
+
+# Auto-determine available backends
+if [ -z "$BACKENDS" ]; then
+	echo -n "Checking for supported backends..             "
+	BACKENDS="$($MAKE get_available_backends ${PKG_CONFIG:+PKG_CONFIG="$PKG_CONFIG"} | awk '/^BACKENDS:/ {print substr($0, 11);}')"
+	echo "${BACKENDS:-(none)}"
+fi
+
+# Disable explicitly disabled and enable explicitly enabled backends
+for BACKEND in ${DISABLED_BACKENDS}; do
+	BACKENDS="${BACKENDS//${BACKEND} /}"
+done
+for BACKEND in ${ENFORCED_BACKENDS}; do
+	BACKENDS="${BACKEND} ${BACKENDS//${BACKEND} /}"
+done
+
+echo "Building with backends:                       ${BACKENDS:-(none)}"
+if [ -z "$BACKENDS" ]; then
+	echo "WARNING: Building without backends! You won't be able to see _any_ images." >&2
+fi
+
+echo -n "Checking if the prerequisites are installed.. "
+LIBS_GTK3="`$MAKE get_libs GTK_VERSION=3 EXECUTABLE_EXTENSION=$EXECUTABLE_EXTENSION ${PKG_CONFIG:+PKG_CONFIG="$PKG_CONFIG"} ${BACKENDS:+BACKENDS="$BACKENDS"} | awk '/^LIBS:/ {print substr($0, 7);}'`"
+LIBS_GTK2="`$MAKE get_libs GTK_VERSION=2 EXECUTABLE_EXTENSION=$EXECUTABLE_EXTENSION ${PKG_CONFIG:+PKG_CONFIG="$PKG_CONFIG"} ${BACKENDS:+BACKENDS="$BACKENDS"} | awk '/^LIBS:/ {print substr($0, 7);}'`"
+
+if [ $? != 0 ]; then
+	echo "failed."
+	echo
+	echo
+	echo "Failed to run make. Is your make command compatible to GNU make?" >&2
+	exit 1
+fi
+
+if ${PKG_CONFIG:-pkg-config} --exists "$LIBS_GTK3"; then
+	LIBS="${LIBS_GTK3}"
+	echo "ok"
+else
+	if ${PKG_CONFIG:-pkg-config} --exists "$LIBS_GTK2"; then
+		if [ "$GTK_VERSION" = 3 ]; then
+			echo "failed."
+			echo
+			echo
+			echo "GTK 2 was found, but you manually specified --gtk-version=3, which was not found." >&2
+			echo "If you want GTK3, install the development packages for" >&2
+			echo " ${LIBS_GTK3}" >&2
+			exit 1
+		fi
+		echo "ok, found GTK 2"
+		GTK_VERSION=2
+		LIBS="${LIBS_GTK2}"
+	else
+		echo "failed."
+		echo
+		echo
+		echo "Please install either the development packages for " >&2
+		echo " ${LIBS_GTK3}" >&2
+		echo "or for" >&2
+		echo " ${LIBS_GTK2}" >&2
+		exit 1
+	fi
+fi
+
+if [ "$SOURCE_DIR" != "$STARTUP_DIR" ]; then
+	if ! [ -e $STARTUP_DIR/GNUmakefile ]; then
+		echo "Writing GNUmakefile."
+		echo "include $SOURCE_DIR/GNUmakefile" > $STARTUP_DIR/GNUmakefile
+	else
+		echo "Not touching existing GNUmakefile."
+	fi
+fi
+
+
+echo "Writing config.make."
+cat > $STARTUP_DIR/config.make <<EOF
+DESTDIR=$DESTDIR
+PREFIX=$PREFIX
+GTK_VERSION=$GTK_VERSION
+CROSS=$CROSS
+EXECUTABLE_EXTENSION=$EXECUTABLE_EXTENSION
+${PKG_CONFIG:+PKG_CONFIG=$PKG_CONFIG}
+EXTRA_DEFS=${EXTRA_DEFS}
+BACKENDS_BUILD=$BACKENDS_BUILD
+${CFLAGS:+CFLAGS=$CFLAGS}
+${LDFLAGS:+LDFLAGS=$LDFLAGS}
+${CPPFLAGS:+CPPFLAGS=$CPPFLAGS}
+${MANDIR:+MANDIR=$MANDIR}
+${LIBDIR:+LIBDIR=$LIBDIR}
+${BACKENDS:+BACKENDS=$BACKENDS}
+${CC:+CC=$CC}
+${VERBOSE:+VERBOSE=$VERBOSE}
+${EXTRA_CFLAGS_SHARED_OBJECTS:+EXTRA_CFLAGS_SHARED_OBJECTS=$EXTRA_CFLAGS_SHARED_OBJECTS}
+${EXTRA_CFLAGS_BINARY:+EXTRA_CFLAGS_BINARY=$EXTRA_CFLAGS_BINARY}
+${EXTRA_LDFLAGS_SHARED_OBJECTS:+EXTRA_LDFLAGS_SHARED_OBJECTS=$EXTRA_LDFLAGS_SHARED_OBJECTS}
+${EXTRA_LDFLAGS_BINARY:+EXTRA_LDFLAGS_BINARY=$EXTRA_LDFLAGS_BINARY}
+${DEBUG_DEFS}
+EOF
+
+# Check for lcms bug
+#
+if [ "${BACKENDS_BUILD}" = "static" -a "${BACKENDS/poppler//}" != "${BACKENDS}" -a "${BACKENDS/spectre//}" != "${BACKENDS}" -a -n "$(which ldd 2>/dev/null)" ]; then
+	echo -n "Checking if affected by liblcms bug..         "
+	DIR=`tempdir`
+	cd $DIR
+	echo -e "#include <poppler.h>\n#include <libspectre/spectre.h>\nint main() { poppler_get_version(); spectre_status_to_string(SPECTRE_STATUS_SUCCESS); }" > test.c
+	${CROSS}${CC:-cc} ${CFLAGS} test.c ${LDFLAGS} $(${PKG_CONFIG:-pkg-config} --libs --cflags ${LIBS}) -o test >/dev/null 2>&1
+	if [ -e test ]; then
+		if [ "$(ldd test | grep -E "liblcms[0-9]?.so" | wc -l)" -gt 1 ]; then
+			echo "yes"
+			echo 2>&1
+			echo "WARNING: You enabled both the spectre and poppler backends, and chose static linking." >&2
+			echo "Your system uses two different versions of liblcms that are known to interfere:" 2>&1
+			ldd test | grep -E "liblcms[0-9]?.so" >&2
+			echo "Recompile using --backends-build=shared if you experience problems." 2>&1
+			echo 2>&1
+		else
+			echo "no"
+		fi
+	else
+		echo "test failed"
+	fi
+	rm -f test.c test
+	cd ..
+	rmdir $DIR
+fi
+
+echo
+echo "Done. Run \`$MAKE install' to install pqiv."
+exit 0
