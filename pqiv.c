@@ -531,7 +531,6 @@ static const struct default_key_bindings_struct {
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_v                ), ACTION_FLIP_VERTICALLY                 , { 0   }},
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_l                ), ACTION_ROTATE_LEFT                     , { 0   }},
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_k                ), ACTION_ROTATE_RIGHT                    , { 0   }},
-	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_i                ), ACTION_TOGGLE_INFO_BOX                 , { 0   }},
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_j                ), ACTION_JUMP_DIALOG                     , { 0   }},
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_m                ), ACTION_MONTAGE_MODE_ENTER              , { 0   }},
 	{ DEFAULT, KEY_BINDING_VALUE(0 , 0                , GDK_KEY_s                ), ACTION_TOGGLE_SLIDESHOW                , { 0   }},
@@ -648,7 +647,6 @@ const struct pqiv_action_descriptor {
 	{ "flip_vertically", PARAMETER_NONE },
 	{ "rotate_left", PARAMETER_NONE },
 	{ "rotate_right", PARAMETER_NONE },
-	{ "toggle_info_box", PARAMETER_NONE },
 	{ "jump_dialog", PARAMETER_NONE },
 	{ "toggle_slideshow", PARAMETER_NONE },
 	{ "hardlink_current_image", PARAMETER_NONE },
@@ -4062,7 +4060,6 @@ inline void queue_draw() {/*{{{*/
 		gtk_widget_queue_draw(GTK_WIDGET(main_window));
 	}
 }/*}}}*/
-#endif
 gboolean window_close_callback(GtkWidget *object, gpointer user_data) {/*{{{*/
 	gtk_main_quit();
 
