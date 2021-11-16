@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Configure script for pqiv. Running this script is optional if you only want
+# Configure script for pqi--overlay. Running this script is optional if you only want
 # gdk-pixbuf support, but still recommended.
 #
 
@@ -38,7 +38,7 @@ cd "$SOURCE_DIR"
 # Help and options
 help() {
 	cat >&2 <<EOF
-pqiv configuration
+pqiv-overlay configuration
 
 general options:
   --prefix=..           Set the prefix for installed files [/usr]
@@ -50,8 +50,8 @@ general options:
   Some of the usual autotools options are supported as well for advanced users.
   See the source code of the configure script.
 
-options to select pqiv's backends:
-  --backends=..         Select which backends to include in pqiv
+options to select pqiv-overlay's backends:
+  --backends=..         Select which backends to include in pqiv-overlay
                         (autodetermined by default)
                         Available:
                           archive (generic archive file support),
@@ -65,11 +65,11 @@ options to select pqiv's backends:
   --with[out]-<backend> Alternative syntax for backend selection. Non-specified backends are
                         autodetermined.
   --backends-build=..   Either \`shared' to compile the backends as shared libraries,
-                        or \`static' to compile them into pqiv. \`shared' is only of use if you
-                        plan to package pqiv and want to get rid of the run-time dependencies,
+                        or \`static' to compile them into pqiv-overlay. \`shared' is only of use if you
+                        plan to package pqiv-overlay and want to get rid of the run-time dependencies,
                         so this defaults to \`static'.
 
-options to remove features from pqiv:
+options to remove features from pqiv-overlay:
 EOF
 
 	awk 'BEGIN { FS="ifndef|ifdef|option|:|/\\*|\\*/" } /ifn?def .+ option / { print $2 " " $4 " " $5 }' pqiv.c | while read DEFNAME OPTFLAG DESCRIPTION; do
@@ -133,7 +133,7 @@ while [ $# -gt 0 ]; do
 			;;
 		# Undocumented options for autoconf (esp. dh_auto_configure)
 		# compatibility Note to maintainers: These options are here to make it
-		# simpler to package pqiv, because they allow to run autotools wrappers
+		# simpler to package pqiv-overlay, because they allow to run autotools wrappers
 		# against this package.  I will maintain them, but I'd recommend
 		# against using them if you can avoid it.
 		--host)
@@ -198,7 +198,7 @@ if [ -z $MAKE ]; then
 	if ! (${MAKE} -v 2>&1 | grep -q "GNU Make"); then
 		MAKE=gmake
 		if ! which $MAKE 2>&1 >/dev/null; then
-			echo "GNU make is required for building pqiv" >&2
+			echo "GNU make is required for building pqiv-overlay" >&2
 			exit 1
 		fi
 	fi
@@ -389,5 +389,5 @@ if [ "${BACKENDS_BUILD}" = "static" -a "${BACKENDS/poppler//}" != "${BACKENDS}" 
 fi
 
 echo
-echo "Done. Run \`$MAKE install' to install pqiv."
+echo "Done. Run \`$MAKE install' to install pqiv-overlay."
 exit 0
