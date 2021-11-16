@@ -1,4 +1,4 @@
-PQIV README
+PQIV-OVERLAY README
 ===========
 
 About pqiv
@@ -16,14 +16,21 @@ filters, image preloading, and much more.
 pqiv started as a Python rewrite of qiv avoiding imlib, but evolved into a much
 more powerful tool. Today, pqiv stands for powerful quick image viewer.
 
-Features
---------
+
+About pqiv-overlay
+------------------
+
+pqiv-overlay seeks to specialize pqiv for the sole purpose of providing 
+*seamless* graphical overlays on your desktop. It is intended to be installed 
+alongside pqiv or independently.
+
+
+pqiv Features
+-------------
 
  * Recursive loading from directories
  * Can watch files and directories for changes
  * Sorts images in natural order
- * Has a status bar showing information on the current image
- * Comes with transparency support
  * Can move/zoom/rotate/flip images
  * Can pipe images through external filters
  * Loads the next image in the background for quick response times
@@ -34,6 +41,17 @@ Features
  * Customizable key-bindings with support for VIM-like key sequences, action
    cycling and binding multiple actions to a single key
 
+
+pqiv-overlay Features
+---------------------
+
+ * Full window transparency
+ * Click-through
+ * Keep-above other windows
+ * Disabled information bar
+ * Independent from pqiv installation
+
+
 Installation
 ------------
 
@@ -41,26 +59,7 @@ Usual stuff. `./configure && make && make install`. The configure script is
 optional if you only want gdk-pixbuf support and will auto-determine which
 backends to build if invoked without parameters.
 
-You can also use precompiled and packaged versions of pqiv. Note that the
-distribution packages are usually somewhat out of date:
-
- * Statically linked
-   [nightly builds for Linux and Windows](https://intern.pberndt.com/pqiv_builds/)
-   ![Build status](https://intern.pberndt.com/pqiv_builds/ci.php)
- * Dynamically linked
-   [nightly builds for Debian, Ubuntu, SUSE and Fedora](https://build.opensuse.org/package/show/home:phillipberndt/pqiv)
-   thanks to the OpenSUSE build service
- * [Arch AUR package](https://aur.archlinux.org/packages/pqiv/)
-   ([Git version](https://aur.archlinux.org/packages/pqiv-git/))
- * [CRUX port](https://crux.nu/portdb/?a=search&q=pqiv)
- * [Debian package](https://packages.debian.org/en/sid/pqiv)
- * [FreeBSD port](https://www.freshports.org/graphics/pqiv/)
- * [Gentoo ebuild](https://packages.gentoo.org/packages/media-gfx/pqiv)
- * [macOS brew](http://braumeister.org/formula/pqiv)
- * [NixOS package](https://github.com/NixOS/nixpkgs/blob/HEAD/pkgs/applications/graphics/pqiv/default.nix)
- * [OpenBSD port](http://cvsweb.openbsd.org/cgi-bin/cvsweb/ports/graphics/pqiv/)
-
-If you'd like to compile pqiv manually, you'll need
+If you'd like to compile pqiv-overlay manually, you'll need
 
  * gtk+ 3.0 *or* gtk+ 2.6
  * gdk-pixbuf 2.2 (included in gtk+)
@@ -84,98 +83,47 @@ shared version of the backends, for example for separate packaging of the
 binaries or to make the run-time dependencies optional, use the
 `--backends-build=shared` configure option.
 
-For macOS, have a look at the `pqiv.app` target of the Makefile, too.
-
 Thanks
 ------
+
+Phillip Berndt and contributors for creating pqiv
+<https://github.com/phillipberndt/pqiv/>
 
 This program uses Martin Pool's natsort algorithm
 <https://www.github.com/sourcefrog/natsort/>.
 
 
-Contributors
-------------
-
-Contributors to pqiv 2.x are:
-
- * J. Paul Reed
- * Chen Jonh L
- * Anton Älgmyr
-
-Contributors to pqiv ≤ 1.0 were:
-
- * Alexander Sulfrian
- * Alexandros Diamantidis
- * Brandon
- * David Lindquist
- * Hanspeter Gysin
- * John Keeping
- * Nir Tzachar
- * Rene Saarsoo
- * Tinoucas
- * Yaakov
-
 Known bugs
 ----------
 
-* **The window is centered in between two monitors in old multi-head setups**:
-  This happens if you have the RandR extension enabled, but configured
-  incorrectly. GTK is programmed to first try RandR and use Xinerama only as
-  a fallback if that fails. (See `gdkscreen-x11.c`.) So if your video drivers
-  for some reason detect your multiple monitors as one big screen you can not
-  simply use fakexinerama to fix things. This might also apply to nvidia drivers
-  older than version 304. I believe that I can not fix this without breaking
-  functionality for other users or maintaining a blacklist, so you should
-  deactivate RandR completely until your driver is able to provide correct
-  information, or use a fake xrand (like
-  [mine](https://github.com/phillipberndt/fakexrandr), for example)
+<https://github.com/phillipberndt/pqiv#known-bugs>
 
-* **Loading postscript files failes with `Error #12288; Unknown output format`**:
-  This issue happens if your poppler and spectre libraries are linked against
-  different versions of libcms. libcms and libcms2 will both be used, but
-  interfere with each other. Compile using `--backends-build=shared` to
-  circumvent this issue.
 
 Examples
 --------
 
-Basic usage of pqiv is very straightforward, call
+Basic usage of pqiv-overlay is very straightforward, call
 
-    pqiv <files or directories>
+    pqiv-overlay <files or directories>
 
 and then use space, backspace, `f` (for fullscreen), `q` (to quit), and `m` for
 the montage overview to navigate through your images. To see all key bindings,
 see the `DEFAULT KEY BINDINGS` section of the man-page, or run
-`pqiv --show-bindings`.
-
-For some advanced uses of pqiv, take a look at these resouces:
-
-* [Play music while looking at specific images](https://github.com/phillipberndt/pqiv/issues/100#issuecomment-320651190)
-* <details><summary>Bind keys to cycle through panels of a 2x2 comic</summary>
-
-  Store this in your `.pqivrc`:
-  ```
-  # Bind c to act as if "#c1" was typed
-  c { send_keys(#c1); }
-  # If "#c1" is typed, shift the current image to it's north west corner, and
-  # rebind "c" to act as if "#c2" was typed
-  <numbersign>c1 { set_shift_align_corner(NW); bind_key(c { send_keys(#c2\); }); }
-  # ..etc..
-  <numbersign>c2 { set_shift_align_corner(NE); bind_key(c { send_keys(#c3\); }); }
-  <numbersign>c3 { set_shift_align_corner(SW); bind_key(c { send_keys(#c4\); }); }
-  # The last binding closes the cycle by rebinding "c" to act as if "#c1" was typed
-  <numbersign>c4 { set_shift_align_corner(SE); bind_key(c { send_keys(#c1\); }); }
-  ```
-
-  </details>
+`pqiv-overlay --show-bindings`.
 
 
 Changelog
 ---------
 
-pqiv-overlay
- * Added `--keep-above` to keep the window above others.
- * Added `--click-through` mode which ignores all mouse input
+pqiv-overlay 2.13
+ * Now runs inherently with desired overlay configuration
+ * Permanent full window transparency
+ * Removed info-box specific rendering, functions, and keybind
+
+pqiv-overlay 2.12
+ + `--keep-above` option which keeps the window on top
+ + `--click-through` option which ignores all mouse input
+ * Disallow empty windows.
 
 pqiv 2.11
  * Added negate (color inversion) mode (bound to `n`, `--negate`)

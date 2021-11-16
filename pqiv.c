@@ -1400,8 +1400,8 @@ BOSNode *load_images_handle_parameter_add_file(load_images_state_t state, file_t
 		}
 	}
 	if(state == INOTIFY) {
-		// If this image was loaded via the INOTIFY handler, we need to update
-		// the info text. We do not update it here for images loaded via the
+		// If this image was loaded via the INOTIFY handler
+		// We do not update it here for images loaded via the
 		// --lazy-load function (i.e. check for main_window_visible /
 		// gui_initialized), because the high frequency of Xlib calls crashes
 		// the app (with an Xlib resource unavailable error) at least on my
