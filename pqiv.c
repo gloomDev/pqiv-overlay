@@ -290,9 +290,6 @@ struct {
 gboolean scale_override = FALSE;
 const gchar *option_window_title = "pqiv-overlay: $FILENAME ($WIDTHx$HEIGHT) $ZOOM% [$IMAGE_NUMBER/$IMAGE_COUNT]";
 gdouble option_slideshow_interval = 5.;
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT
-gboolean option_hide_info_box = FALSE;
-#endif
 gboolean option_start_fullscreen = FALSE;
 gdouble option_initial_scale = 1.0;
 gboolean option_start_with_slideshow_mode = FALSE;
@@ -394,9 +391,6 @@ GOptionEntry options[] = {
 	{ "slideshow-interval", 'd', 0, G_OPTION_ARG_DOUBLE, &option_slideshow_interval, "Set slideshow interval", "n" },
 	{ "fullscreen", 'f', 0, G_OPTION_ARG_NONE, &option_start_fullscreen, "Start in fullscreen mode", NULL },
 	{ "fade", 'F', 0, G_OPTION_ARG_NONE, (gpointer)&option_fading, "Fade between images", NULL },
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT
-	{ "hide-info-box", 'i', 0, G_OPTION_ARG_NONE, &option_hide_info_box, "Initially hide the info box", NULL },
-#endif
 	{ "lazy-load", 'l', 0, G_OPTION_ARG_NONE, &option_lazy_load, "Display the main window as soon as one image is loaded", NULL },
 	{ "sort", 'n', 0, G_OPTION_ARG_NONE, &option_sort, "Sort files in natural order", NULL },
 	{ "window-position", 'P', 0, G_OPTION_ARG_CALLBACK, &option_window_position_callback, "Set initial window position (`x,y' or `off' to not position the window at all)", "POSITION" },
@@ -2935,13 +2929,6 @@ gboolean absolute_image_movement(BOSNode *ref) {/*{{{*/
 #endif
 
 #ifndef CONFIGURED_WITHOUT_INFO_TEXT
-	// If the new image has not been loaded yet, prepare to display an information message
-	// after some grace period
-	if(!CURRENT_FILE->is_loaded && !option_hide_info_box) {
-		gdk_threads_add_timeout(500, absolute_image_movement_still_unloaded_timer_callback, current_file_node);
-	}
-#endif
-
 	// Load it
 	queue_image_load(bostree_node_weak_ref(current_file_node));
 
@@ -4116,28 +4103,12 @@ inline void queue_draw() {/*{{{*/
 	}
 }/*}}}*/
 #ifndef CONFIGURED_WITHOUT_INFO_TEXT /* option --without-info-text: Build without support for the info text */
-inline void info_text_queue_redraw() {/*{{{*/
-	if(!option_hide_info_box && main_window_visible) {
-		gtk_widget_queue_draw_area(GTK_WIDGET(main_window),
-			current_info_text_bounding_box.x,
-			current_info_text_bounding_box.y,
-			main_window_width - current_info_text_bounding_box.x,
-			current_info_text_bounding_box.height
-		);
-	}
-}/*}}}*/
 void update_info_text(const gchar *action) {/*{{{*/
 	D_LOCK(file_tree);
 	current_info_text_cached_font_size = -1;
 
 	#ifndef CONFIGURED_WITHOUT_MONTAGE_MODE
 	if(application_mode == MONTAGE) {
-		if(!option_hide_info_box) {
-			if(current_info_text != NULL) {
-				g_free(current_info_text);
-			}
-			current_info_text = g_strdup("Montage mode");
-		}
 		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv: Montage mode");
 		D_UNLOCK(file_tree);
 		return;
@@ -4146,17 +4117,6 @@ void update_info_text(const gchar *action) {/*{{{*/
 
 	if(!current_file_node) {
 		const char *none_loaded = "No image loaded";
-		if(!option_hide_info_box) {
-			if(current_info_text != NULL) {
-				g_free(current_info_text);
-			}
-			if(action) {
-				current_info_text = g_strdup_printf("%s - %s", action, none_loaded);
-			}
-			else {
-				current_info_text = g_strdup(none_loaded);
-			}
-		}
 		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv: No image loaded");
 		D_UNLOCK(file_tree);
 		return;
@@ -4179,30 +4139,11 @@ void update_info_text(const gchar *action) {/*{{{*/
 
 	if(!CURRENT_FILE->is_loaded) {
 		// Image not loaded yet. Use loading information and abort.
-		if(!option_hide_info_box) {
-			current_info_text = g_strdup_printf("%s (Image is still loading...)", display_name);
-		}
 		gtk_window_set_title(GTK_WINDOW(main_window), "pqiv");
 
 		g_free(file_name);
 		D_UNLOCK(file_tree);
 		return;
-	}
-
-	// Update info text
-	if(!option_hide_info_box) {
-		current_info_text = g_strdup_printf("%s (%dx%d) %03.2f%% [%d/%d]", display_name,
-			CURRENT_FILE->width,
-			CURRENT_FILE->height,
-			current_scale_level * 100.,
-			(unsigned int)(bostree_rank(current_file_node) + 1),
-			(unsigned int)(bostree_node_count(file_tree)));
-
-		if(action != NULL) {
-			gchar *old_info_text = current_info_text;
-			current_info_text = g_strdup_printf("%s (%s)", current_info_text, action);
-			g_free(old_info_text);
-		}
 	}
 
 	// Prepare main window title
@@ -5623,14 +5564,6 @@ void action(pqiv_action_t action_id, pqiv_action_parameter_t parameter) {/*{{{*/
 			}
 			update_info_text("Image rotated right");
 			break;
-
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT
-		case ACTION_TOGGLE_INFO_BOX:
-			option_hide_info_box = !option_hide_info_box;
-			update_info_text(NULL);
-			gtk_widget_queue_draw(GTK_WIDGET(main_window));
-			break;
-#endif
 
 #ifndef CONFIGURED_WITHOUT_JUMP_DIALOG
 		case ACTION_JUMP_DIALOG:
