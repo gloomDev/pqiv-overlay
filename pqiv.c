@@ -284,7 +284,7 @@ struct {
 } scale_to_fit_size;
 
 gboolean scale_override = FALSE;
-const gchar *option_window_title = "pqiv: $FILENAME ($WIDTHx$HEIGHT) $ZOOM% [$IMAGE_NUMBER/$IMAGE_COUNT]";
+const gchar *option_window_title = "pqiv-overlay: $FILENAME ($WIDTHx$HEIGHT) $ZOOM% [$IMAGE_NUMBER/$IMAGE_COUNT]";
 gdouble option_slideshow_interval = 5.;
 #ifndef CONFIGURED_WITHOUT_INFO_TEXT
 gboolean option_hide_info_box = FALSE;
@@ -302,7 +302,6 @@ gboolean option_watch_directories = FALSE;
 gboolean option_wait_for_images_to_appear = FALSE;
 gboolean option_fading = FALSE;
 gboolean option_lazy_load = FALSE;
-gboolean option_allow_empty_window = FALSE;
 gboolean option_lowmem = FALSE;
 gboolean option_addl_from_stdin = FALSE;
 gboolean option_recreate_window = FALSE;
@@ -424,7 +423,6 @@ GOptionEntry options[] = {
 #ifndef CONFIGURED_WITHOUT_ACTIONS
 	{ "action", 0, 0, G_OPTION_ARG_CALLBACK, &option_action_callback, "Perform a given action", "ACTION" },
 	{ "actions-from-stdin", 0, 0, G_OPTION_ARG_NONE, &option_actions_from_stdin, "Read actions from stdin", NULL },
-	{ "allow-empty-window", 0, 0, G_OPTION_ARG_NONE, &option_allow_empty_window, "Show pqiv/do not quit even though no files are loaded", NULL },
 #endif
 	{ "background-pattern", 0, 0, G_OPTION_ARG_CALLBACK, &options_background_pattern_callback, "Set the background pattern to use for transparent images", "PATTERN" },
 #ifndef CONFIGURED_WITHOUT_ACTIONS
@@ -2018,7 +2016,7 @@ void image_file_updated_callback(GFileMonitor *monitor, GFile *file, GFile *othe
 		// sense to unload even the last image.
 		if(option_watch_files == ON) {
 			FILE(node)->force_reload = TRUE;
-			if(bostree_node_count(file_tree) > 1 || option_allow_empty_window) {
+			if(bostree_node_count(file_tree) > 1) {
 				queue_image_load(bostree_node_weak_ref(node));
 			}
 		}
@@ -2510,27 +2508,11 @@ gboolean image_loader_load_single(BOSNode *node, gboolean called_from_main) {/*{
 			bostree_remove(file_tree, node);
 		}
 		if(!called_from_main && bostree_node_count(file_tree) == 0) {
-			if(option_allow_empty_window) {
-				D_UNLOCK(file_tree);
-				current_file_node = NULL;
-				earlier_file_node = NULL;
-				invalidate_current_scaled_image_surface();
-				if(last_visible_surface) {
-					cairo_surface_destroy(last_visible_surface);
-					last_visible_surface = NULL;
-				}
-				current_image_drawn = FALSE;
-				update_info_text(NULL);
-				queue_draw();
-				return FALSE;
-			}
-			else {
-				g_printerr("No images left to display.\n");
-				if(gtk_main_level() == 0) {
-					exit(1);
-				}
-				gtk_main_quit();
-			}
+            g_printerr("No images left to display.\n");
+            if(gtk_main_level() == 0) {
+                exit(1);
+            }
+            gtk_main_quit();
 		}
 		D_UNLOCK(file_tree);
 	}
@@ -7952,12 +7934,6 @@ gpointer load_images_thread(gpointer user_data) {/*{{{*/
 }/*}}}*/
 gboolean inner_main(void *user_data) {/*{{{*/
 	if(option_lazy_load) {
-		if(option_allow_empty_window) {
-			create_window();
-			gtk_widget_show_all(GTK_WIDGET(main_window));
-			main_window_visible = TRUE;
-		}
-
 		g_thread_new("image-loader", load_images_thread, GINT_TO_POINTER(1));
 	}
 	else {
