@@ -2928,7 +2928,6 @@ gboolean absolute_image_movement(BOSNode *ref) {/*{{{*/
 	current_file_node = bostree_node_weak_ref(node);
 #endif
 
-#ifndef CONFIGURED_WITHOUT_INFO_TEXT
 	// Load it
 	queue_image_load(bostree_node_weak_ref(current_file_node));
 
